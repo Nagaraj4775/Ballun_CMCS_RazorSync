@@ -1,0 +1,231 @@
+pipeline {
+    agent any
+    tools {
+        maven 'maven'
+        jdk 'jdk8'
+    }
+    triggers {
+        pollSCM("H/2 * * * *")
+    }
+    environment {
+        PROJECT_NAME = readMavenPom().getArtifactId()
+        PREVIOUS_GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD^').trim()
+        CURRENT_GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+    }
+
+    stages {
+        stage("Build") {
+            steps {
+                slackSend "${env.JOB_NAME} - #${env.BUILD_NUMBER} Started (<${env.BUILD_URL}|Open>)"
+                sh 'mvn clean package'
+            }
+            post {
+                success {
+                    archiveArtifacts 'target/v*/**'
+                    archiveArtifacts 'Jenkinsfile'
+                    sh "cloc --by-file --xml --out=cloc.xml src scripts"
+                    sloccountPublish encoding: '', pattern: 'cloc.xml'
+
+                    checkstyle canComputeNew: false, defaultEncoding: '', healthy: '', pattern: 'target/checkstyle-result.xml', unHealthy: ''
+                    junit '**/surefire-reports/**/*.xml'
+                    warnings canComputeNew: false, canResolveRelativePaths: false, categoriesPattern: '', consoleParsers: [[parserName: 'Java Compiler (javac)'], [parserName: 'JavaDoc Tool'], [parserName: 'Maven']], defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''
+                    jacoco()
+                }
+            }
+        }
+        stage("Generate Change Log") {
+            when {
+                expression {
+                    return (env.BRANCH_NAME == "master" || env.BRANCH_NAME == "develop")
+                }
+            }
+            steps {
+                step([$class: 'GitChangelogRecorder', config: [configFile                   : 'git-changelog-settings.json',
+                                                               createFileTemplateContent    : """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Change Log</title>
+</head>
+
+<h1> Change Log ${PROJECT_NAME} </h1>
+
+<h2>JIRA Issues</h2>
+<ul>
+  {{#issues}}
+    {{#hasIssue}}
+    <li>
+      <a target="_blank" href="https://jira.office.comscore.com/browse/{{issue}}">{{issue}}</a>
+    </li>
+    {{/hasIssue}}
+  {{/issues}}
+</ul>
+
+{{#tags}}
+
+  <h2> {{name}} </h2>
+
+  <table>
+  <tr>
+  <th>Time</th>
+  <th>Summary</th>
+  </tr>
+
+  {{#commits}}
+    <tr>
+      <td>
+        <i>{{commitTime}}</i>
+      </td>
+      <td>
+        <b>{{{messageTitle}}}</b><br/>
+        {{#messageBodyItems}}
+          <li> {{.}} </li>
+        {{/messageBodyItems}}
+        <a target="_blank" href="https://git.office.comscore.com/projects/CORE_VCE/repos/${PROJECT_NAME}/commits/{{hash}}">{{hash}}</a> {{authorName}} {{authorEmailAddress}}
+        <p/>
+      </td>
+    </tr>
+  {{/commits}}
+  
+  </table>
+  
+{{/tags}}
+
+<p>previous: ${PREVIOUS_GIT_COMMIT}</p>
+<p>current: ${CURRENT_GIT_COMMIT}</p>
+</html>""",
+                                                               createFileTemplateFile       : '',
+                                                               createFileUseTemplateContent : true,
+                                                               customIssues                 : [[link: '', name: '', pattern: '', title: ''], [link: '', name: '', pattern: '', title: '']],
+                                                               dateFormat                   : 'YYYY-MM-dd HH:mm:ss',
+                                                               file                         : 'CHANGELOG.html',
+                                                               fromReference                : "${PREVIOUS_GIT_COMMIT}",
+                                                               toReference                  : "${CURRENT_GIT_COMMIT}",
+                                                               fromType                     : 'commit',
+                                                               ignoreCommitsIfMessageMatches: '^\\[maven-release-plugin\\].*|^\\[Gradle Release Plugin\\].*',
+                                                               ignoreTagsIfNameMatches      : '',
+                                                               jiraIssuePattern             : '\\bVCECP-([0-9]+)\\b',
+                                                               jiraPassword                 : '',
+                                                               jiraServer                   : 'https://jira.office.comscore.com/',
+                                                               timeZone                     : 'UTC',
+                                                               toType                       : 'commit',
+                                                               untaggedName                 : 'Unreleased',
+                                                               useFile                      : true,
+                                                               useJira                      : true]])
+                publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: true, reportDir: '', reportFiles: 'CHANGELOG.html', reportName: 'Change log', reportTitles: ''])
+            }
+        }
+        stage("Deploy Staging") {
+            when {
+                not {
+                    branch "master"
+                }
+            }
+            steps {
+                sshPublisher(publishers: [
+                        sshPublisherDesc(configName: 'Hadoop HDFS', transfers: [
+                                sshTransfer(excludes: '',
+                                        execCommand: '',
+                                        execTimeout: 120000,
+                                        flatten: true,
+                                        makeEmptyDirs: false,
+                                        noDefaultExcludes: false,
+                                        patternSeparator: '[, ]+',
+                                        remoteDirectory: "advertising_test/${PROJECT_NAME}/${BRANCH_NAME}",
+                                        remoteDirectorySDF: false,
+                                        removePrefix: '',
+                                        sourceFiles: 'target/v*/**')],
+                                usePromotionTimestamp: false,
+                                useWorkspaceInPromotion: false,
+                                verbose: true)])
+                sh 'echo "[@ADVERTISING_BIN_TEST]/${PROJECT_NAME}/${BRANCH_NAME}" > testing_path.txt'
+                archiveArtifacts 'testing_path.txt'
+            }
+        }
+        stage("Deploy Production") {
+            when {
+                branch "master"
+            }
+            steps {
+                sh '''
+repo=${PROJECT_NAME}
+issues=`git log --pretty=oneline ${PREVIOUS_GIT_COMMIT}..${CURRENT_GIT_COMMIT} | grep -Eo \'VCECP-[0-9]+\' | sort | uniq | paste -sd, | sed \'s/,/%2C/g\'`
+if [ "${issues}" == "" ]
+then
+	issues="VCECP-"
+fi
+today=`date +%Y%m%d`
+half=\'<!DOCTYPE html><html lang="en"><head><title>Deploy Ticket</title></head><body><a id="out" target="_parent" href="http://csiadsrp02:4567/production\'
+full="${half}/${repo}/${issues}/${today}\\">Create Ticket</a></body></html>"
+echo ${full} > ${WORKSPACE}/deploy_ticket.html'''
+                publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '', reportFiles: 'deploy_ticket.html', reportName: 'Create Deploy Ticket', reportTitles: ''])
+
+                sshPublisher(publishers: [
+                        sshPublisherDesc(configName: 'Hadoop HDFS', transfers: [
+                                sshTransfer(excludes: '',
+                                        execCommand: '',
+                                        execTimeout: 120000,
+                                        flatten: false,
+                                        makeEmptyDirs: false,
+                                        noDefaultExcludes: false,
+                                        patternSeparator: '[, ]+',
+                                        remoteDirectory: "advertising/${PROJECT_NAME}/",
+                                        remoteDirectorySDF: false,
+                                        removePrefix: 'target',
+                                        sourceFiles: 'target/v*/**')],
+                                usePromotionTimestamp: false,
+                                useWorkspaceInPromotion: false,
+                                verbose: false),
+                        sshPublisherDesc(configName: 'Hadoop HDFS', transfers: [
+                                sshTransfer(excludes: '',
+                                        execCommand: '',
+                                        execTimeout: 120000,
+                                        flatten: false,
+                                        makeEmptyDirs: false,
+                                        noDefaultExcludes: false,
+                                        patternSeparator: '[, ]+',
+                                        remoteDirectory: "'advertising/${PROJECT_NAME}/v'yyyyMMdd",
+                                        remoteDirectorySDF: true,
+                                        removePrefix: '',
+                                        sourceFiles: 'CHANGELOG.html')],
+                                usePromotionTimestamp: false,
+                                useWorkspaceInPromotion: false,
+                                verbose: false)])
+            }
+        }
+    }
+    post {
+        success {
+            slackSend color: 'good', message: "${env.JOB_NAME} - #${env.BUILD_NUMBER} Success after ${currentBuild.durationString} (<${env.BUILD_URL}|Open>)"
+        }
+        unstable {
+            slackSend color: 'warning', message: "${env.JOB_NAME} - #${env.BUILD_NUMBER} Unstable after ${currentBuild.durationString} (<${env.BUILD_URL}|Open>)"
+            emailSend(env.BRANCH_NAME)
+        }
+        failure {
+            slackSend color: 'danger', message: "${env.JOB_NAME} - #${env.BUILD_NUMBER} Failure after ${currentBuild.durationString} (<${env.BUILD_URL}|Open>)"
+            emailSend(env.BRANCH_NAME)
+        }
+        always {
+            script {
+                currentBuild.result = currentBuild.result ?: 'SUCCESS'
+                notifyBitbucket()
+            }
+        }
+    }
+}
+
+def emailSend(branch) {
+    if (branch == 'develop' || branch == 'master') {
+        mail to: 'vce_cp@comscore.com',
+                subject: "Main build failed: ${currentBuild.fullDisplayName}",
+                body: "Something is wrong with ${env.BUILD_URL}"
+    } else {
+        def author = sh script: "git show --format='%ae' -s ${GIT_COMMIT}", returnStdout: true
+        def type = currentBuild.currentResult == 'UNSTABLE' ? " is unstable" : " failed"
+        def message = "Feature branch ${type}: ${currentBuild.fullDisplayName}"
+        mail to: "${author}",
+                subject: message,
+                body: "Something is wrong with ${env.BUILD_URL}"
+    }
+}

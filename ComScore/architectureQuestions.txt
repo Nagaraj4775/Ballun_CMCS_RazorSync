@@ -1,0 +1,67 @@
+Infrastructure
+----------------
+where do you want to provision your infrastructure In cloud/ In house?
+What are the tools you are currently using? I saw jenkins and bitbucket
+
+SCM
+---- 
+How many developers
+How frequently they commit new changes
+Do you have any branching stratagy? If yes what kind of branching stratagy you have implemented
+Are you following any pull requests mechanism, or do you allow everyone to merge into the main/master branch
+
+CI 
+---
+Do you have any CI process? or we need to implement from scratch
+Do we need to integrate any ticketing tools.
+Do you have any change management request system like keep track of each versions and approvals for compliance meet.
+
+CD
+---
+What kind of Release management you are looking for? Fully automated pipelines upto prod or you need any manual approvals before prod.
+Do we have any deployment strategy? How you are rolling updates into higher environments. Any rollback strategy incase of deployment failure
+How many environments you are planning? 3/4 ?
+
+Monitoring
+-----------
+How you are monitoring infrastructure in your environments. Any tools already in place?
+
+
+Do we have any existing architecture
+
+
+
+
+We had discussion with Hugo on understanding the requirements for ComScore project. Below are the points we have discussed in the meeting 
+
+Suresh introduced Aparn and Nagaraju to Hugo.
+Hugo shared his complete experience with comscore and technology stack currently they are using.
+
+90% of the Comscore infrastructure is on AWS cloud and remaining is in on-premise
+Multiple developers are working and making commits depends on necessary changes. Following pull requests mechanism to validate the changes.
+Hugo intrested in implementing Git Branching strategy and having some gated build mechanism to verify DAG files syantax and etc..
+Jenkins is using for Continuous Integration, raising the tickets in Jira to track the changes
+Jenkins pipelines not fully implemented, Intrested in implementing single click deployment to multiple environments with single pipeline.
+On-prem infrastructure is monitoring by Nagios, cloud servers with cloudwatch service and EMR with Ganglia tool.
+Discussed on containerizing current airflow server and managing them in different environments.
+
+
+Is your ETV running in prod?
+How you are deploying? What are the steps you follow to deploy
+What you will do in staging environments or in dev environments (How do we do testing)
+To implement CICD SQL files copying is enough or we should do anything else?
+
+
+
+
+Scaling out with celery
+=======================
+Celery executor method is used to execute multiple worker nodes
+Celery executor requires few dependecies to increase worker capabilities, dependecies are...
+Redis/Rabbit MQ = for maintaing Queue
+Celery flower = a web UI built on top of Celery, o mon`itor your workers.
+
+ 
+
+
+

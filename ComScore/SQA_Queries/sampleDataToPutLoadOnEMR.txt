@@ -1,0 +1,25 @@
+spark-shell
+
+case class Ratings(userId : String,
+movieId : Int,
+rating : Int,
+timestamp : String)
+
+import org.apache.spark.sql.Encoders
+
+val ratingDS = spark.read.option("delimiter", ",").schema(Encoders.product[Ratings].schema).option("nullValue", "").csv("s3://nagaraj-codedeploy/ComScore_Data/ratings.csv").as[Ratings]
+
+ratingDS.createOrReplaceTempView("ratings")
+
+*To Start putting load execute one by one*
+
+spark.sql("select count(distinct(a.userId)), count(a.userId) from ratings as a cross join ratings as b").show
+
+spark.sql("select count(distinct(a.userId)), count(a.userId) from ratings as a cross join ratings as b").show
+
+spark.sql("select count(distinct(a.userId)), count(a.userId) from ratings as a cross join ratings as b cross join ratings c").show
+
+spark.sql("select count(distinct(a.userId)), count(a.userId) from ratings as a cross join ratings as b cross join ratings c cross join ratings d")
+
+
+initiated at 11:19

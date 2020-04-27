@@ -1,0 +1,21 @@
+In today's meeting we have discussed about
+
+why ELK introduced
+The Way of performance analysis started
+How we analyzed API server metrics
+Benifits after migration, How CPU utilization is reduced and current behaviour of it.
+Worker server recommendation
+Log analysis mechanism for prod environment
+UI, API, Worker, Rabbit-MQ server logs analysis and their dashboards
+Usage of Kibana Dashboards to see how to analyze application behaviour.
+
+
+
+Can we swap current reserved instance with any other instance in the process of migration 
+Deepak wants to see a way for improved performance.
+Deepak wants to migrate worker server to save the cost.
+Calculate CDN cost based data transfer, he needs some rough digit.
+What are the next work items?
+
+
+

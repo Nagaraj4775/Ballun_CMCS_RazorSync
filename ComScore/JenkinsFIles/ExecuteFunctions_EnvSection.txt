@@ -1,0 +1,61 @@
+pipeline{
+agent any
+environment {
+		HDFS_DIR = getHdfsDir(env.BRANCH_NAME)
+		HDFS_PATH = getHdfsPath(env.BRANCH_NAME)
+		PUBLISH_TYPE = getPublishType(env.BRANCH_NAME)
+		PUBLISH_PATH = getPublishPath(env.BRANCH_NAME)
+		BORG_SUFFIX = getBorgNameSuffix(env.BRANCH_NAME)
+	}
+	stages{
+		stage('test') {
+		}
+	}
+}
+
+def getHdfsDir(branchName) {
+    def directory
+    switch (branchName) {
+        case 'master':
+            directory = 'prod'
+            break
+        case 'develop':
+            directory = 'staging'
+            break
+        case ~/^hotfix.*/:
+            directory = 'hotfix'
+            break
+        default:
+            directory = branchName
+            break
+    }
+    directory
+}
+
+def getHdfsPath(branchName) {
+	if (branchName == 'master')
+		'/mapr/ia1.comscore.com/bin/staging'
+	else
+		'/mapr/ia1.comscore.com/bin/ccr'
+}
+
+def getPublishType(branchName) {
+	if (branchName == 'master')
+		'Hadoop HDFS'
+	else
+		'Prod HDFS CCR'
+}
+
+def getPublishPath(branchName) {
+	if (branchName == 'master')
+		'ccr/prod'
+	else
+		getHdfsDir(branchName)
+}
+
+def getBorgNameSuffix(branchName) {
+	if (branchName == 'master')
+		'\\\\csiadadm04\\DDrive\\bin\\BJBTools\\BJBUploadTemplate.exe target/classes/borg'
+	else
+		'\\\\csiadadm04\\DDrive\\bin\\BJBTools\\BJBUploadTemplate.exe target/classes/borg -BJBVersion='+getHdfsDir(branchName)
+}

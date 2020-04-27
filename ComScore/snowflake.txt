@@ -1,0 +1,6 @@
+CREATE warehouse IF NOT EXISTS NAGARAJ;
+CREATE database IF NOT EXISTS NAGARAJ;
+use NAGARAJ;
+CREATE OR REPLACE TABLE digital(name STRING, id INT);
+INSERT INTO digital values('nagraj', 1);
+Drop warehouse NAGARAJ;

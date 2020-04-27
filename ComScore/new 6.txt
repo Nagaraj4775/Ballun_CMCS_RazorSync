@@ -1,0 +1,89 @@
+LOG URI: s3://csxpdev-xp-east/etv-pipeline/poc/espresso_agg_logs/
+
+Subnet ID: subnet-f97eeb9d
+
+EMR EC2 Instance profile: r-csxpdev-xp-galactus
+
+EMR Role: EMR_DefaultRole
+
+Key name: csxpdev_xp_helios_20171122
+
+Master SG: sg-76c99103
+
+Slave SG: sg-42cf9737
+
+
+AWS_PROFILE=r-csxpdev-xp-galactus aws emr create-cluster \
+--applications Name=Spark Name=Pig Name=Tez Name=Ganglia \
+--tags 'owner=skamidi' 'project=ETV-Pipeline-POC' 'product=XP' 'department=XP' 'approval=Travis Naganuma' 'Name=etv-emr-poc' \
+--ebs-root-volume-size 10 --ec2-attributes '{"KeyName":"csxpdev_xp_helios_20171122","AdditionalSlaveSecurityGroups":["sg-abb259de"],"InstanceProfile":"r-csxpdev-xp-galactus","ServiceAccessSecurityGroup":"sg-a8d28add","SubnetId":"subnet-f97eeb9d","EmrManagedSlaveSecurityGroup":"sg-42cf9737","EmrManagedMasterSecurityGroup":"sg-76c99103","AdditionalMasterSecurityGroups":["sg-abb259de"]}' \
+--service-role EMR_DefaultRole \
+--release-label emr-5.5.0 --log-uri 's3n://csxpdev-xp-east/etv-pipeline/poc/espresso_agg_logs/' \
+--name 'ETV Pig Spark POC 3' \
+--instance-groups '[{"InstanceCount":1,"EbsConfiguration":{"EbsBlockDeviceConfigs":[{"VolumeSpecification":{"SizeInGB":500,"VolumeType":"gp2"},"VolumesPerInstance":1}],"EbsOptimized":true},"InstanceGroupType":"MASTER","InstanceType":"m4.xlarge","Name":"MASTER"},{"InstanceCount":2,"EbsConfiguration":{"EbsBlockDeviceConfigs":[{"VolumeSpecification":{"SizeInGB":200,"VolumeType":"gp2"},"VolumesPerInstance":1}],"EbsOptimized":true},"InstanceGroupType":"CORE","InstanceType":"m4.xlarge","Name":"CORE"}]' \
+--scale-down-behavior TERMINATE_AT_INSTANCE_HOUR \
+--region us-east-1
+
+
+				# "ServiceAccessSecurityGroup": { "Ref": ""	},
+				#	"EmrManagedSlaveSecurityGroup": { "Ref": ""	},
+				#	"EmrManagedMasterSecurityGroup": { "Ref": "" },
+					"AdditionalMasterSecurityGroups": {	"Ref": "AdditionalMasterSecurityGroups"	},
+					"AdditionalSlaveSecurityGroups": { "Ref": "AdditionalSlaveSecurityGroups"	},
+
+
+
+				"Tags": [
+                  {
+                    "Key": "owner",
+                    "Value": "skamidi"
+                  },
+				  {
+				    "Key": "project",
+					"value": "ETV-Pipeline-POC"
+				  },
+                  {
+                    "Key": "product",
+                    "Value": "XP"
+                  },
+				  {
+                    "Key": "department",
+                    "Value": "XP"
+                  },
+				  {
+                    "Key": "approval",
+                    "Value": "Travis Naganuma"
+                  },
+				  {
+                    "Key": "Name",
+                    "Value": "etv-emr-poc"
+                  }
+                ]
+				
+				
+				
+				
+Solutions for ec2 out of capacity issue:
+
+Comscore team is requested to provide a solution to avoid ec2 out of capacity in the requested region.
+
+Suggested below 3 possible ways to avoid it..
+
+1. Launching the cluster into multiple availability zones 
+	Problem: Launching cluster into multiple AZ may degrade cluster performance (Mentioned in official Documentation itself)
+2. Splitting jobs into 5-10 clusters
+	Problem: It is difficult to maintain dependecy for admin/Operations team when it is goes to production.
+3. Purchase Resrved instances can also avoid this
+	Problem: Client is not ready for this currently.
+
+Hi Suresh,
+
+We have modified cloud formation template as per the requested changes. This template has been shared with Raviteja and Shravan. 
+
+We are also looking into creating AMI but facing below issues.
+
+1. virtualization is not supporting: We are using EMR 5.5 version but before 5.13 version will provide pvm (para virtual machine) which is not supported for customized AMI. 
+2. When we created AMI with above 5.13 version we are facing multiple EBS cannot be supported.
+3. We can install required binaries manually but Dev's are saying we may face incompatible issues if we install like this.
+4. We hope EMR cluster automates Ganglia installation (architecture will be in server-client model). It is very difficult to establish communication betrween Ganglia master and core nodes. 
+

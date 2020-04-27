@@ -1,0 +1,19 @@
+#!/bin/bash
+
+sudo add-apt-repository ppa:openjdk-r/ppa -y
+sudo apt-get update -y
+sudo apt-get install openjdk-8-jdk -y
+
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+
+sudo apt-get install apt-transport-https -y
+
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+
+sudo apt-get update -y && sudo apt-get install elasticsearch -y && sudo apt-get install kibana -y
+
+#sudo su
+#ulimit -n 65535
+
+#sudo /bin/systemctl enable elasticsearch.service
+#sudo /bin/systemctl start elasticsearch.service
